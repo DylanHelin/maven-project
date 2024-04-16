@@ -1,26 +1,58 @@
 pipeline {
-  agent any
-  tools {
-    maven "localMaven"
-  }
-  stages {
-    stage('Test') {
-      steps {
-        //sh 'mvn clean compile test'
-        bat 'mvn clean compile test'
-        echo "Testing is done"
-      }
-    }
-    stage('Build and Send Results to Sonar') {
-      steps {
-         withSonarQubeEnv(installationName: 'sonarqube')
-        {
-       // sh 'mvn package'
-        bat 'mvn -B -DskipTests clean package sonar:sonar -Dsonar.login=admin -Dsonar.password=Admin'
-        }
-      }
-    }
-
+    agent any
     
- }
-  }
+    tools {
+        maven 'localMaven'
+    }
+    
+    stages {
+        stage('Clone') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name : '*/master']],
+                    extensions : [],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/DylanHelin/maven-project.git', 
+                        credentialsId: 'sucret_key_4_github'
+                    ]]    
+                ])
+            }
+        }
+        
+        stage('Compile') {
+            steps {
+                withMaven(maven: 'localMaven') {
+                    bat "mvn compile"
+                }
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                withMaven(maven: 'localMaven') {
+                    bat "mvn test"
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                withMaven(maven: 'localMaven') {
+                    bat 'mvn -B -DSkipTests clean package'
+                }
+            }
+        }
+        
+        stage('Build and send Results Sonar') {
+            steps {
+                withSonarQubeEnv(
+                    installationName: 'sonar',
+                    credentialsId: 'sucret4sonar'
+                ) {
+                    bat 'mvn -B -DSkipTests clean package sonar:sonar'
+                }
+            }
+        }
+    }
+}
